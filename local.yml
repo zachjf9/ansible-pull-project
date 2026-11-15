@@ -1,0 +1,73 @@
+---
+# ============================================================================
+#  Project 2 — your hardening playbook.   (ansible-pull runs THIS file)
+#
+#  ansible-pull looks for a file named local.yml at the root of your git repo,
+#  and runs it ON the box itself (no SSH, no inventory needed).
+#
+#  To apply it on your box:
+#     sudo ansible-pull -U https://github.com/<you>/<your-repo>.git
+#
+#  Goal: bring a broken box into the hardened target state (see the portal for
+#  the 14 tasks and exactly what each one checks). Your playbook must be
+#  IDEMPOTENT — running it a second time should report  changed=0.
+# ============================================================================
+
+- name: Project 2 hardening
+  hosts: localhost
+  connection: local
+  become: true
+
+  tasks:
+
+    # ----- EXAMPLE (safe to keep) — shows the shape of a task -------------
+    - name: Example — make sure a package is present
+      ansible.builtin.package:
+        name: ca-certificates
+        state: present
+    # ---------------------------------------------------------------------
+
+    # ======================= Domain A — System / SSH =====================
+    # TODO: SSH — disallow root login and password auth, then restart ssh
+    #   (modules: ansible.builtin.lineinfile or blockinfile; ansible.builtin.service)
+    #
+    # TODO: Host firewall (UFW) — active, default-deny incoming, allow only SSH
+    #   (module: community.general.ufw, or ansible.builtin.command as a last resort)
+    #
+    # TODO: Remove the unauthorized scheduled job
+    #   (module: ansible.builtin.file  state: absent  — or ansible.builtin.cron)
+    #
+    # TODO: Stop + disable + remove the unnecessary service
+    #   (modules: ansible.builtin.service; ansible.builtin.package state: absent)
+    #
+    # TODO: Install fail2ban and make sure it protects sshd
+    #   (modules: ansible.builtin.package; ansible.builtin.copy/template; service)
+    #
+    # TODO: Fix the world-writable application directory
+    #   (module: ansible.builtin.file  mode/owner/group)
+
+    # ================= Domain B — Users / privilege escalation ===========
+    # TODO: Remove or lock the unauthorized sudo account
+    #   (module: ansible.builtin.user  state: absent  — or lock the password)
+    #
+    # TODO: Remove the passwordless-sudo (NOPASSWD) rule
+    #   (module: ansible.builtin.file  state: absent)
+    #
+    # TODO: Remove the unexpected SUID-root binary
+    #   (module: ansible.builtin.file  state: absent  — or fix the mode)
+    #
+    # TODO: Fix the account that has a blank password
+    #   (module: ansible.builtin.user  — set/lock the password)
+    #
+    # TODO: Restrict the world-readable credentials file
+    #   (module: ansible.builtin.file  mode: "0600"  + owner)
+
+    # ================== Domain C — Database least-privilege ==============
+    # These need the community.mysql collection + pymysql. Install once:
+    #     ansible-galaxy collection install community.mysql
+    #     sudo apt-get install -y python3-pymysql
+    #
+    # TODO: Scope the webapp account to only what it needs (see the inventory)
+    # TODO: Scope the reporting account to read-only on its DB
+    # TODO: Tighten DB access hosts; drop anonymous/stale accounts
+    #   (module: community.mysql.mysql_user  — priv:, host:, login_unix_socket:)
