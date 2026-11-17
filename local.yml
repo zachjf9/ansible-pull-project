@@ -7,7 +7,7 @@
 #  and runs it ON the box itself (no SSH, no inventory needed).
 #
 #  To apply it on your box:
-#     sudo ansible-pull -U https://github.com/<you>/<your-repo>.git
+#     sudo ansible-pull -U https://github.com/zachjf9/ansible-pull-project.git
 #
 #  Goal: bring a broken box into the hardened target state (see the portal for
 #  the 14 tasks and exactly what each one checks). Your playbook must be
@@ -159,7 +159,6 @@
         name: monitor
         groups: ''
         append: false
-
 
     # TODO: Remove the passwordless-sudo (NOPASSWD) rule
     #   (module: ansible.builtin.file state: absent)
