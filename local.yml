@@ -1,3 +1,4 @@
+
 ---
 # ============================================================================
 #  Project 2 — your hardening playbook.   (ansible-pull runs THIS file)
@@ -10,7 +11,7 @@
 #
 #  Goal: bring a broken box into the hardened target state (see the portal for
 #  the 14 tasks and exactly what each one checks). Your playbook must be
-#  IDEMPOTENT — running it a second time should report  changed=0.
+#  IDEMPOTENT — running it a second time should report changed=0.
 # ============================================================================
 
 - name: Project 2 hardening
@@ -27,47 +28,239 @@
         state: present
     # ---------------------------------------------------------------------
 
+    # Install packages required for security hardening and MySQL
+    - name: Install packages
+      ansible.builtin.apt:
+        name:
+          - ufw
+          - fail2ban
+          - python3-pymysql
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
     # ======================= Domain A — System / SSH =====================
+
     # TODO: SSH — disallow root login and password auth, then restart ssh
     #   (modules: ansible.builtin.lineinfile or blockinfile; ansible.builtin.service)
-    #
+
+    - name: Disable root SSH login and password authentication
+      ansible.builtin.copy:
+        dest: /etc/ssh/sshd_config.d/99-course.conf
+        content: |
+          PermitRootLogin no
+          PasswordAuthentication no
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Restart SSH
+
     # TODO: Host firewall (UFW) — active, default-deny incoming, allow only SSH
     #   (module: community.general.ufw, or ansible.builtin.command as a last resort)
-    #
+
+    - name: Deny incoming
+      community.general.ufw:
+        direction: incoming
+        policy: deny
+
+    - name: Allow outgoing
+      community.general.ufw:
+        direction: outgoing
+        policy: allow
+
+    - name: Allow SSH through firewall
+      community.general.ufw:
+        rule: allow
+        port: '22'
+        proto: tcp
+
+    - name: Enable firewall
+      community.general.ufw:
+        state: enabled
+
     # TODO: Remove the unauthorized scheduled job
-    #   (module: ansible.builtin.file  state: absent  — or ansible.builtin.cron)
-    #
+    #   (module: ansible.builtin.file state: absent — or ansible.builtin.cron)
+
+    - name: Remove unauthorized scheduled job
+      ansible.builtin.file:
+        path: /etc/cron.d/sysstat-collect
+        state: absent
+
     # TODO: Stop + disable + remove the unnecessary service
     #   (modules: ansible.builtin.service; ansible.builtin.package state: absent)
-    #
+
+    - name: Check for rogue service
+      ansible.builtin.stat:
+        path: /etc/systemd/system/debugshell.service
+      register: rogue_service
+
+    - name: Disable rogue service
+      ansible.builtin.systemd_service:
+        name: debugshell.service
+        state: stopped
+        enabled: false
+      when: rogue_service.stat.exists
+
+    - name: Remove rogue service file
+      ansible.builtin.file:
+        path: /etc/systemd/system/debugshell.service
+        state: absent
+      notify: Reload systemd
+
+    - name: Remove rogue service directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/debugshell.service.d
+        state: absent
+      notify: Reload systemd
+
     # TODO: Install fail2ban and make sure it protects sshd
     #   (modules: ansible.builtin.package; ansible.builtin.copy/template; service)
-    #
+
+    - name: fail2ban installation and configuration
+      ansible.builtin.copy:
+        dest: /etc/fail2ban/jail.d/sshd.local
+        content: |
+          [sshd]
+          enabled = true
+          port = ssh
+          backend = systemd
+          maxretry = 5
+          findtime = 10m
+          bantime = 1h
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Restart fail2ban
+
+    - name: Enable fail2ban
+      ansible.builtin.service:
+        name: fail2ban
+        state: started
+        enabled: true
+
     # TODO: Fix the world-writable application directory
-    #   (module: ansible.builtin.file  mode/owner/group)
+    #   (module: ansible.builtin.file mode/owner/group)
+
+    - name: Fix the world-writable application directory
+      ansible.builtin.file:
+        path: /srv/data/incoming
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
 
     # ================= Domain B — Users / privilege escalation ===========
+
     # TODO: Remove or lock the unauthorized sudo account
-    #   (module: ansible.builtin.user  state: absent  — or lock the password)
-    #
+    #   (module: ansible.builtin.user state: absent — or lock the password)
+
+    - name: Remove unauthorized sudo account
+      ansible.builtin.user:
+        name: monitor
+        groups: ''
+        append: false
+
     # TODO: Remove the passwordless-sudo (NOPASSWD) rule
-    #   (module: ansible.builtin.file  state: absent)
-    #
+    #   (module: ansible.builtin.file state: absent)
+
+    - name: Remove the passwordless-sudo (NOPASSWD) rule
+      ansible.builtin.file:
+        path: /etc/sudoers.d/90-course-nopasswd
+        state: absent
+
     # TODO: Remove the unexpected SUID-root binary
-    #   (module: ansible.builtin.file  state: absent  — or fix the mode)
-    #
+    #   (module: ansible.builtin.file state: absent — or fix the mode)
+
+    - name: Remove the unexpected SUID-root binary
+      ansible.builtin.file:
+        path: /usr/local/bin/flushcache
+        state: absent
+
     # TODO: Fix the account that has a blank password
-    #   (module: ansible.builtin.user  — set/lock the password)
-    #
+    #   (module: ansible.builtin.user — set/lock the password)
+
+    - name: Fix the account that has a blank password
+      ansible.builtin.user:
+        name: kioskuser
+        password: '!'
+        password_lock: true
+        update_password: always
+
     # TODO: Restrict the world-readable credentials file
-    #   (module: ansible.builtin.file  mode: "0600"  + owner)
+    #   (module: ansible.builtin.file mode: "0600" + owner)
+
+    - name: Restrict the world-readable credentials file
+      ansible.builtin.file:
+        path: /opt/crm/.env
+        owner: root
+        group: root
+        mode: '0600'
 
     # ================== Domain C — Database least-privilege ==============
+
     # These need the community.mysql collection + pymysql. Install once:
     #     ansible-galaxy collection install community.mysql
     #     sudo apt-get install -y python3-pymysql
-    #
+
     # TODO: Scope the webapp account to only what it needs (see the inventory)
+
+    - name: Restrict webapp database privileges
+      community.mysql.mysql_user:
+        name: webapp
+        host: '%'
+        priv: 'ticketdb.*:SELECT,INSERT,UPDATE,DELETE'
+        append_privs: false
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
     # TODO: Scope the reporting account to read-only on its DB
+
+    - name: Restrict DB privileges
+      community.mysql.mysql_user:
+        name: reporting
+        host: '%'
+        priv: 'ticketdb.*:SELECT'
+        append_privs: false
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
     # TODO: Tighten DB access hosts; drop anonymous/stale accounts
-    #   (module: community.mysql.mysql_user  — priv:, host:, login_unix_socket:)
+    #   (module: community.mysql.mysql_user — priv:, host:, login_unix_socket:)
+
+    - name: Remove DB root account
+      community.mysql.mysql_user:
+        name: root
+        host: '%'
+        state: absent
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+    - name: Remove anonymous/stale DB account
+      community.mysql.mysql_user:
+        name: ''
+        host: '%'
+        state: absent
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+    - name: Remove anonymous DB account on localhost
+      community.mysql.mysql_user:
+        name: ''
+        host: localhost
+        state: absent
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+  # Handlers only run when a task notifies them of a change.
+  # This helps keep the playbook idempotent.
+
+  handlers:
+
+    - name: Restart SSH
+      ansible.builtin.service:
+        name: ssh
+        state: restarted
+
+    - name: Reload systemd
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+
+    - name: Restart fail2ban
+      ansible.builtin.service:
+        name: fail2ban
+        state: restarted
