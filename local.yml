@@ -1,4 +1,3 @@
-
 ---
 # ============================================================================
 #  Project 2 — your hardening playbook.   (ansible-pull runs THIS file)
@@ -28,7 +27,8 @@
         state: present
     # ---------------------------------------------------------------------
 
-    # Install packages required for security hardening and MySQL
+    # Install packages
+    
     - name: Install packages
       ansible.builtin.apt:
         name:
@@ -41,8 +41,7 @@
 
     # ======================= Domain A — System / SSH =====================
 
-    # TODO: SSH — disallow root login and password auth, then restart ssh
-    #   (modules: ansible.builtin.lineinfile or blockinfile; ansible.builtin.service)
+    # SSH
 
     - name: Disable root SSH login and password authentication
       ansible.builtin.copy:
@@ -55,8 +54,7 @@
         mode: '0644'
       notify: Restart SSH
 
-    # TODO: Host firewall (UFW) — active, default-deny incoming, allow only SSH
-    #   (module: community.general.ufw, or ansible.builtin.command as a last resort)
+    # Firewall
 
     - name: Deny incoming
       community.general.ufw:
@@ -78,16 +76,14 @@
       community.general.ufw:
         state: enabled
 
-    # TODO: Remove the unauthorized scheduled job
-    #   (module: ansible.builtin.file state: absent — or ansible.builtin.cron)
+    # Unauthorized scheduled job
 
     - name: Remove unauthorized scheduled job
       ansible.builtin.file:
         path: /etc/cron.d/sysstat-collect
         state: absent
 
-    # TODO: Stop + disable + remove the unnecessary service
-    #   (modules: ansible.builtin.service; ansible.builtin.package state: absent)
+    # Disable unnecessary services
 
     - name: Check for rogue service
       ansible.builtin.stat:
@@ -113,8 +109,7 @@
         state: absent
       notify: Reload systemd
 
-    # TODO: Install fail2ban and make sure it protects sshd
-    #   (modules: ansible.builtin.package; ansible.builtin.copy/template; service)
+    # fail2ban
 
     - name: fail2ban installation and configuration
       ansible.builtin.copy:
@@ -138,8 +133,7 @@
         state: started
         enabled: true
 
-    # TODO: Fix the world-writable application directory
-    #   (module: ansible.builtin.file mode/owner/group)
+    # World-writable application directory
 
     - name: Fix the world-writable application directory
       ansible.builtin.file:
@@ -151,8 +145,7 @@
 
     # ================= Domain B — Users / privilege escalation ===========
 
-    # TODO: Remove or lock the unauthorized sudo account
-    #   (module: ansible.builtin.user state: absent — or lock the password)
+    # Remove the unauthorized sudo account
 
     - name: Remove unauthorized sudo account
       ansible.builtin.user:
@@ -160,8 +153,7 @@
         groups: ''
         append: false
 
-    # TODO: Remove the passwordless-sudo (NOPASSWD) rule
-    #   (module: ansible.builtin.file state: absent)
+    # Update password rules
 
     - name: Remove the passwordless-sudo (NOPASSWD) rule
       ansible.builtin.file:
@@ -175,16 +167,14 @@
         line: 'ubuntu ALL=(ALL) ALL'
         validate: '/usr/sbin/visudo -cf %s'
 
-    # TODO: Remove the unexpected SUID-root binary
-    #   (module: ansible.builtin.file state: absent — or fix the mode)
+    # Remove the SUID-root binary
 
     - name: Remove the unexpected SUID-root binary
       ansible.builtin.file:
         path: /usr/local/bin/flushcache
         state: absent
 
-    # TODO: Fix the account that has a blank password
-    #   (module: ansible.builtin.user — set/lock the password)
+    # Fix the account that has a blank password
 
     - name: Fix the account that has a blank password
       ansible.builtin.user:
@@ -193,8 +183,7 @@
         password_lock: true
         update_password: always
 
-    # TODO: Restrict the world-readable credentials file
-    #   (module: ansible.builtin.file mode: "0600" + owner)
+    # Restrict the world-readable credentials file
 
     - name: Restrict the world-readable credentials file
       ansible.builtin.file:
@@ -209,17 +198,15 @@
     #     ansible-galaxy collection install community.mysql
     #     sudo apt-get install -y python3-pymysql
 
-    # TODO: Scope the webapp account to only what it needs (see the inventory)
+    # Restrict database privileges
 
-    - name: Restrict webapp database privileges
+    - name: Restrict webapp DB privileges
       community.mysql.mysql_user:
         name: webapp
         host: '%'
         priv: 'ticketdb.*:SELECT,INSERT,UPDATE,DELETE'
         append_privs: false
         login_unix_socket: /var/run/mysqld/mysqld.sock
-
-    # TODO: Scope the reporting account to read-only on its DB
 
     - name: Restrict DB privileges
       community.mysql.mysql_user:
@@ -229,8 +216,7 @@
         append_privs: false
         login_unix_socket: /var/run/mysqld/mysqld.sock
 
-    # TODO: Tighten DB access hosts; drop anonymous/stale accounts
-    #   (module: community.mysql.mysql_user — priv:, host:, login_unix_socket:)
+    # Tighten DB access hosts; drop anonymous/stale accounts
 
     - name: Remove DB root account
       community.mysql.mysql_user:
@@ -252,9 +238,6 @@
         host: localhost
         state: absent
         login_unix_socket: /var/run/mysqld/mysqld.sock
-
-  # Handlers only run when a task notifies them of a change.
-  # This helps keep the playbook idempotent.
 
   handlers:
 
