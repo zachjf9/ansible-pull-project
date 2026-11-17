@@ -160,6 +160,7 @@
         groups: ''
         append: false
 
+
     # TODO: Remove the passwordless-sudo (NOPASSWD) rule
     #   (module: ansible.builtin.file state: absent)
 
@@ -167,6 +168,13 @@
       ansible.builtin.file:
         path: /etc/sudoers.d/90-course-nopasswd
         state: absent
+
+    - name: Require password for sudo
+      ansible.builtin.lineinfile:
+        path: /etc/sudoers.d/90-cloud-init-users
+        regexp: '^\s*ubuntu\s+ALL=\(ALL\)\s+NOPASSWD:'
+        line: 'ubuntu ALL=(ALL) ALL'
+        validate: '/usr/sbin/visudo -cf %s'
 
     # TODO: Remove the unexpected SUID-root binary
     #   (module: ansible.builtin.file state: absent — or fix the mode)
